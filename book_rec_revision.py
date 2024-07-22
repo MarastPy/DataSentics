@@ -21,7 +21,6 @@ Použití str.lower() přímo na sloupce typu object může být rychlejší.
 dataset_lowercase = dataset.applymap(lambda x: x.lower() if isinstance(x, str) else x)
 '''
 
-
 # load ratings
 ratings = pd.read_csv('Downloads/BX-Book-Ratings.csv', encoding='cp1251', sep=';')
 ratings = ratings.query('Book-Rating != 0')
