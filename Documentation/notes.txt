@@ -28,4 +28,4 @@ improvements
  There is possible tricky part as i mentioned before. For example it wont show books based on genre which is for some
  people crucial, not everbody who loves Lotr would be a fan of Jane Austen. So one of the possibilities would be add 10
  favourite books to create better picture of persons interest. Another possibility would be adding cover picture and so
- on to tune the app.
+ on to tune the app .
