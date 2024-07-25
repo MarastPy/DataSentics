@@ -1,0 +1,13 @@
+[build-system]
+requires = ["hatchling>=1.0.0"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build]
+# Specify the build targets you want, typically this will be "wheel" and/or "sdist"
+targets = ["wheel"]
+
+[tool.hatch.build.targets.wheel]
+# Specify the directories or packages you want to include in your wheel
+packages = ["src"]
+
+# Optional: Add any additional build configurations here

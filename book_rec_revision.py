@@ -1,90 +1,100 @@
+# import
 import pandas as pd
 import numpy as np
 
-'''
-1.Načítání dat a zpracování chyb:
-
-Parametr error_bad_lines=False v pd.read_csv je zastaralý. Mělo by se použít on_bad_lines='skip'.
-
-books = pd.read_csv('Downloads/BX-Books.csv', encoding='cp1251', sep=';', on_bad_lines='s
-
-2.Filtr hodnocení:
-
-Místo filtrování nula hodnocení by se mohlo použít query pro lepší čitelnost.
-
-ratings = ratings.query('Book-Rating != 0')
-
-3. Efektivnější normalizace textu:
-
-Použití str.lower() přímo na sloupce typu object může být rychlejší.
-
-dataset_lowercase = dataset.applymap(lambda x: x.lower() if isinstance(x, str) else x)
-'''
-
 # load ratings
 ratings = pd.read_csv('Downloads/BX-Book-Ratings.csv', encoding='cp1251', sep=';')
-ratings = ratings.query('Book-Rating != 0')
+ratings = ratings[ratings['Book-Rating'] != 0]
+# Good way of filtering to remove zero ratings at the beggining.
 
 # load books
-books = pd.read_csv('Downloads/BX-Books.csv', encoding='cp1251', sep=';', on_bad_lines='skip')
+books = pd.read_csv('Downloads/BX-Books.csv', encoding='cp1251', sep=';', on_bad_lines='skip', low_memory=False)
+# Allows flexibility with parsing errors in the book dataset.
+# Better to use `on_bad_lines='skip'` instead of error_bad_lines=False.
 
-# merge datasets
-dataset = pd.merge(ratings, books, on='ISBN')
-dataset_lowercase = dataset.applymap(lambda x: x.lower() if isinstance(x, str) else x)
+# users_ratigs = pd.merge(ratings, users, on=['User-ID'])
+dataset = pd.merge(ratings, books, on=['ISBN'])
+dataset_lowercase = dataset.apply(lambda x: x.str.lower() if (x.dtype == 'object') else x)
+# Merging datasets and normalizing text to lowercase for consistency seems like a good step.
 
-# find Tolkien readers
+
 tolkien_readers = dataset_lowercase['User-ID'][
-    (dataset_lowercase['Book-Title'] == 'the fellowship of the ring (the lord of the rings, part 1)') &
-    (dataset_lowercase['Book-Author'].str.contains('tolkien'))
-    ]
+    (dataset_lowercase['Book-Title'] == 'the fellowship of the ring (the lord of the rings, part 1)') & (
+        dataset_lowercase['Book-Author'].str.contains("tolkien"))]
+tolkien_readers = tolkien_readers.tolist()
 tolkien_readers = np.unique(tolkien_readers)
+# Good Filtering of users who have read a specific book by the same author, and deduplicating user IDs.
 
-# books read by Tolkien readers
-books_of_tolkien_readers = dataset_lowercase[dataset_lowercase['User-ID'].isin(tolkien_readers)]
 
-# number of ratings per book
-number_of_rating_per_book = books_of_tolkien_readers.groupby('Book-Title').size().reset_index(name='count')
-books_to_compare = number_of_rating_per_book['Book-Title'][number_of_rating_per_book['count'] >= 8]
+# final dataset
+books_of_tolkien_readers = dataset_lowercase[(dataset_lowercase['User-ID'].isin(tolkien_readers))]
+# Good way of filtering the dataset to include only those users who read the specified books.
 
-# ratings data for correlation
-ratings_data_raw = books_of_tolkien_readers[
-    books_of_tolkien_readers['Book-Title'].isin(books_to_compare)
-][['User-ID', 'Book-Rating', 'Book-Title']]
+# Number of ratings per other books in dataset
+number_of_rating_per_book = books_of_tolkien_readers.groupby(['Book-Title']).agg('count').reset_index()
+# This Calculates the number of ratings for each book, which is useful for filtering.
+# Useage of .count() on specific columns seems better to me then `agg('count')`.
 
-# average ratings per user-book pair
-ratings_data_raw_nodup = ratings_data_raw.groupby(['User-ID', 'Book-Title'], as_index=False).mean()
+# select only books which have actually higher number of ratings than threshold
+books_to_compare = number_of_rating_per_book['Book-Title'][number_of_rating_per_book['User-ID'] >= 8]
+books_to_compare = books_to_compare.tolist()
+# Making parametr out of 8 should be better way.
 
-# pivot to create user-book matrix
+ratings_data_raw = books_of_tolkien_readers[['User-ID', 'Book-Rating', 'Book-Title']][
+    books_of_tolkien_readers['Book-Title'].isin(books_to_compare)]
+# Good use of filters of ratings data to include only the books of interest.
+# Maybe use `.loc` to filter dataframes for clarity.
+
+# group by User and Book and compute mean
+ratings_data_raw_nodup = ratings_data_raw.groupby(['User-ID', 'Book-Title'])['Book-Rating'].mean()
+# Good use of aggregation of ratings to get average ratings per user and book.
+# Make sure the data is cleaned of duplicates before aggregation.
+
+# reset index to see User-ID in every row
+ratings_data_raw_nodup = ratings_data_raw_nodup.to_frame().reset_index()
+
 dataset_for_corr = ratings_data_raw_nodup.pivot(index='User-ID', columns='Book-Title', values='Book-Rating')
+# Its goo that it Reshapes the dataframe to correlate calculations.
+# Maybe handling  missing values (NaNs) would help dataset_for_corr.fillna('unknown'/'', inplace=True) if its a string.
 
 LoR_list = ['the fellowship of the ring (the lord of the rings, part 1)']
 
 result_list = []
 worst_list = []
 
-# compute correlations
+# for each of the trilogy book compute:
 for LoR_book in LoR_list:
-    dataset_of_other_books = dataset_for_corr.drop(columns=[LoR_book])
 
+    # Take out the Lord of the Rings selected book from correlation dataframe
+    dataset_of_other_books = dataset_for_corr.copy(deep=False)
+    dataset_of_other_books.drop([LoR_book], axis=1, inplace=True)
+
+    # empty lists
     book_titles = []
     correlations = []
     avgrating = []
 
-    for book_title in dataset_of_other_books.columns:
+    # corr computation
+    for book_title in list(dataset_of_other_books.columns.values):
         book_titles.append(book_title)
-        correlation = dataset_for_corr[LoR_book].corr(dataset_of_other_books[book_title])
-        correlations.append(correlation if not np.isnan(correlation) else 0)
-        avgrating.append(ratings_data_raw.query(f'`Book-Title` == "{book_title}"')['Book-Rating'].mean())
+        correlations.append(dataset_for_corr[LoR_book].corr(dataset_of_other_books[book_title]))
+        tab = (ratings_data_raw[ratings_data_raw['Book-Title'] == book_title].groupby(
+            ratings_data_raw['Book-Title']).mean())
+        avgrating.append(tab['Book-Rating'].min())
+    # final dataframe of all correlation of each book
+    corr_fellowship = pd.DataFrame(list(zip(book_titles, correlations, avgrating)),
+                                   columns=['book', 'corr', 'avg_rating'])
+    corr_fellowship.head()
 
-    corr_fellowship = pd.DataFrame({
-        'book': book_titles,
-        'corr': correlations,
-        'avg_rating': avgrating
-    }).sort_values('corr', ascending=False)
+    # top 10 books with highest corr
+    result_list.append(corr_fellowship.sort_values('corr', ascending=False).head(10))
 
-    result_list.append(corr_fellowship.head(10))
-    worst_list.append(corr_fellowship.tail(10))
+    # worst 10 books
+    worst_list.append(corr_fellowship.sort_values('corr', ascending=False).tail(10))
 
 print("Correlation for book:", LoR_list[0])
+# print("Average rating of LOR:", ratings_data_raw[ratings_data_raw['Book-Title']=='the fellowship of the ring (the lord of the rings, part 1'].groupby(ratings_data_raw['Book-Title']).mean()))
 rslt = result_list[0]
-print(rslt)
+
+
+# Overall it would be good to add error handling,

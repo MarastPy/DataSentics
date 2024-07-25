@@ -1,0 +1,31 @@
+1. create some reasonably detailed scheme of an app architecture - which parts should
+the application have, how they should be connected etc.
+- Im not quite sure about this task as ive never worked as python app developer(if we dont cover data architecture), but I assume that the acrhitecture should
+be made of ingestion of data processing and finaly data visualisation in our case it would be visualisation
+in streamlit.
+
+2. do a code review to solution from junior data scientist, discuss its pros & cons
+- This is writen in book_rec_revision.py
+
+3. write a code to download the data and improve its quality before it is used by the
+recommendaton engine
+- Had an isssue with Keggel module, but the download is in download_kaggle_data.py
+
+4. build lightweight prototype of your application, where anyone can enter his/her - favourite book and the applicaton
+returns a sorted list of recommended books - using the model output
+5. voluntarily build a simple frontend for your applicaton (web page)
+- For number 4 and 5 i builded streamlit_app.py
+
+6. present us with your solution and discuss it o how you think about the soluton and
+your ability to explain your approach o limitations of the approach, possible future
+improvements
+- I built a book recommendation system using Streamlite for the interface and Pandas for data processing.
+ The system loads book and rating data, removes low-quality entries, and merges datasets to create a user-book rating
+ pivot table. Recomendations are ensuring similar books are suggested based on user preferences which can be tricky.
+ I also included functionality to handle user input errors by finding the closest matching book titles.
+ I focused on user experience, data quality, and recommendations, with attention to handling common data issues like
+ encoding and duplicates.
+ There is possible tricky part as i mentioned before. For example it wont show books based on genre which is for some
+ people crucial, not everbody who loves Lotr would be a fan of Jane Austen. So one of the possibilities would be add 10
+ favourite books to create better picture of persons interest. Another possibility would be adding cover picture and so
+ on to tune the app.
